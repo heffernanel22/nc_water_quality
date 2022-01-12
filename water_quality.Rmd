@@ -1,0 +1,119 @@
+---
+title: "water quality"
+author: "Ellie "hacker(wo)man supreme" Heffernan"
+date: "1/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+#Set-up. 
+```{r}
+
+#Load packages
+library(readr)
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+#Load in dataframes. This data comes from the U.S. Environmental Protection Agency's Safe Drinking Water Information System (SDWIS) Federal Reporting Services. This data is for the years 2017 through 2021.
+water_system_summary <- read_csv("Water System Summary.csv")
+all_violations <- read_csv("Violation Report.csv")
+
+#Link to data: https://sdwis.epa.gov/ords/sfdw_pub/f?p=108:200:::::: 
+
+
+```
+
+
+#Find out which public water systems have had stage 1 and stage 2 disinfectants and disinfection byproducts violations. 
+```{r}
+disinfectant_violations <- all_violations %>% filter(`Rule Name`=="Stage 1 Disinfectants and Disinfection Byproducts Rule"|`Rule Name`=="Stage 2 Disinfectants and Disinfection Byproducts Rule")
+
+#1307 disinfectant violations in the last four years. 
+```
+
+
+#Group these violations by public water system, and find out how many unique violations each public water system has. 
+```{r}
+#First, lets make a new column that creates a unique identifier for each violation.
+disinfectant_violations <- disinfectant_violations %>% mutate(unique_id = str_c(`Violation First Reported Date`,"/",`Violation Type`,"/",`Contaminant Name`))
+
+#Making a table)
+disinfectant_violations_by_pws <- disinfectant_violations %>% group_by(`PWS Name`) %>% summarise(unique_id = n()) %>% arrange(desc(unique_id))
+
+```
+
+
+#Now make a table showing how many of each TYPE of violation each public water system has. 
+```{r}
+ disinfectant_violations_by_pws_and_violation_type <- disinfectant_violations %>% group_by(`PWS Name`,`Violation Type`) %>% summarise(unique_id = n()) %>% pivot_wider(names_from = `Violation Type`,values_from = unique_id) %>% arrange(desc(`Maximum Contaminant Level Violation, Average`))
+
+```
+
+
+#Now I want to know where these violations are concentrated. Does one county or region stand out? First let's figure out the raw number of disinfectant violations per county. 
+```{r}
+#First,we will have to join in a new dataframe that connects public water system names to the counties and cities they are in. 
+names_counties_water_systems <- read_csv("names_counties_water_systems.csv")
+
+disinfectant_violations_by_pws_geographic <- left_join(disinfectant_violations_by_pws,names_counties_water_systems)
+
+
+#Now let's find the total number of disinfectant violations for each county and city. 
+disinfectant_violations_by_county <- disinfectant_violations_by_pws_geographic %>% group_by(`Counties Served`) %>% summarise(total_disinfectant_violations = sum(unique_id)) %>% arrange(desc(total_disinfectant_violations))
+
+disinfectant_violations_by_city <- disinfectant_violations_by_pws_geographic %>% group_by(`Cities Served`) %>% summarise(total_disinfectant_violations = sum(unique_id)) %>% arrange(desc(total_disinfectant_violations))
+
+
+```
+
+#Now we'll have to adjust this data per capita. I'm going to do violations / 1,000 people served.
+```{r}
+
+
+disinfectant_violations_by_pws_geographic_2 <- disinfectant_violations_by_pws_geographic %>% group_by(`Counties Served`) %>% summarise(population_served = sum(`PopulationServed Count`))
+
+left_join (disinfectant_violations_by_county,disinfectant_violations_by_pws_geographic_2) %>% mutate(violations_per_thousand_served = (total_disinfectant_violations/ population_served)*1000) %>% arrange(desc(violations_per_thousand_served))
+
+```
+
+
+
+
+#Mapping this would be helpful. But it definitely seems to be concentrated in poorest, rural counties. Durham throws me. Maybe it is a poverty thing? Many parts of Durham are inhabitated by low-income POC. 
+
+
+
+#Follow up data questions
+
+#How long are each of these compliance periods? We want to know the frequency at which a group gets violations. (If they are every two months and you have gotten 24 violations in four years, you have gotten violations every time.  
+
+
+#What's the typical size of systems with frequent failures? Do we see a correlation between number of violations and size of population served, somehow?
+
+#Do we see a link between type of system and number of violations?
+
+
+#Is there a link to the number of violations and the number of concentrated animal feeding operations?
+
+#Is there a link to the number of violations and the incidence of certain hospital visits and diseases? 
+
+#Should we focus on one particularly heinous disinfecant? Or one that is most common? 
+
+#Follow Up Reporting questions
+#What's the punishment
+#What does each of these violations mean? For the maximum contaminant violations, look up individual violations and see by how much it exceeded the recommended levels. 
+#Who is responsible
+#What has been done to fix this
+#Who has been affected
+#How is it harming them
+
